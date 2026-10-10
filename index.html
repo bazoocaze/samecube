@@ -731,8 +731,12 @@
     } else if (state.phase === 'fall' && now - state.tFall >= cfg.fallMs) {
       state.popping = []; state.falling = []; state.moving.clear();
       state.phase = 'idle'; dirty = true; checkOver();
-    } else if (state.phase === 'rotate' && now - state.tRot >= cfg.rotMs) {
-      commitRotation(); state.rot.angle = 0; state.phase = 'idle'; dirty = true; checkOver();
+    } else if (state.phase === 'rotate') {
+      const t = Math.min(1, (now - state.tRot) / cfg.rotMs);
+      state.rot.angle = 90 * t;                 // animated sweep; commit uses the same mapping
+      if (t >= 1) {
+        commitRotation(); state.rot.angle = 0; state.phase = 'idle'; dirty = true; checkOver();
+      }
     }
 
     if (state.phase !== 'idle' || state.particles.length || state.popups.length) dirty = true;

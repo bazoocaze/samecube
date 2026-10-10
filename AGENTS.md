@@ -59,6 +59,14 @@ tests/logic_test.js   # deterministic logic test, no browser
    the centroid of every rendered face must return the cube that owns that face.
 8. On a viewport narrower than 760px the panels stack (menus above the cube) and the projected
    cube must fit inside the canvas.
+9. The rotation must actually **sweep**: `state.rot.angle` takes intermediate values between 0 and
+   90 during the `rotate` phase (the render uses `rotY/rotX(angle)`, so the drawn board matches the
+   angle), and it must be reset to 0 at the commit. A phase that only resets the angle is a snap,
+   not an animation.
+10. The canvas and the buttons must have no browser tap-highlight overlay (`-webkit-tap-highlight-color:
+    transparent`) — on Android Chromium paints one on touch input only, which looks like a bluish
+    flash over the whole canvas. The game's own selection highlight is the lightened palette colour
+    (`FILL[color].sel`), which is a different thing and must not be confused with it.
 
 ## Known harness gotchas (learned the hard way)
 
@@ -73,6 +81,12 @@ tests/logic_test.js   # deterministic logic test, no browser
 - Face shading multiplies all channels by one scalar, so "nearest palette colour" is unreliable —
   use `is_shade()` (channel ratios) instead.
 - Input events only reach the active tab; helpers call `bring_to_front()`.
+- The loop renders only when `state.dirty` is set (or an animation is running) and the tab is
+  visible, and pop/fall/rotate animations are time-parametric — so to look at an intermediate frame
+  you must freeze the value (e.g. `state.rot.angle = 45`, `phase = 'idle'`) and call `render()`.
+- Assigning `canvas.width`/`height` clears the canvas; `resize()` only writes them when the size
+  actually changed, and renders in the same task as the clear. Mobile fires `resize` on scroll and
+  toolbar changes, so an unconditional resize+render there shows a blank frame between taps.
 - A second click on a cube of the **already selected group** pops it. A per-cube click test must
   use one cube per group (or check for a pop) — otherwise it measures a pop, not a selection.
 

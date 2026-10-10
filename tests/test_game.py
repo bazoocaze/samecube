@@ -7,6 +7,7 @@ Checks: test hook, picking, pixel render, two-click select/pop through the real
 UI, gravity, rotation (never triggers gravity), undo, game over, HUD, localStorage.
 """
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -160,6 +161,16 @@ check(multiset(page) == bag, "rotation preserved the colour multiset")
 check(s["cubes"] == len(bag), f"rotation preserved the cube count ({s['cubes']})")
 check(s["cells"][idx(page, 0, 3, N - 1)] == color, f"floating cube moved with the column to (0,3,{N - 1})")
 check(s["cells"][idx(page, 0, 0, N - 1)] is None, "rotation did NOT compact the column (no gravity)")
+
+print("\nrotation animation sweeps the angle (not a snap)")
+rotate(page, "y", 1)
+angles = []
+for _ in range(25):
+    angles.append(page.evaluate("() => window.cubegame.state.rot.angle"))
+    time.sleep(0.02)
+mid = [a for a in angles if 0 < a < 90]
+check(len(mid) >= 3, f"angle passed through intermediate values ({len(mid)} of {len(angles)} samples, max {round(max(angles), 1)})")
+check(page.evaluate("() => window.cubegame.state.rot.angle") == 0, "angle reset to 0 after the commit")
 
 print("\nundo")
 set_board(page, "(x, y, z) => 0")
