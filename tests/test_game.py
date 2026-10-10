@@ -107,6 +107,13 @@ check(layout["display"] == "flex", f"narrow screens stack the panels (display={l
 check(layout["hudAbove"], f"menus come before the cube (hud bottom <= main top: {layout['hudAbove']})")
 b, w, h = layout["bounds"], *layout["css"]
 check(b[0] >= 0 and b[1] >= 0 and b[2] <= w and b[3] <= h, f"cube fits inside the canvas {b} within {w}x{h}")
+transparent = {"transparent", "rgba(0, 0, 0, 0)"}
+tap = page.evaluate("""() => {
+  const g = (el) => { const s = getComputedStyle(el); return s.webkitTapHighlightColor || s['-webkit-tap-highlight-color']; };
+  return { canvas: g(document.getElementById('board')), button: g(document.getElementById('btnNew')) };
+}""")
+check(tap["canvas"] in transparent, f"canvas has no browser tap-highlight overlay ({tap['canvas']})")
+check(tap["button"] in transparent, f"buttons have no browser tap-highlight overlay ({tap['button']})")
 page.set_viewport_size({"width": 1000, "height": 700})
 refit(page)
 

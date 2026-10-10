@@ -75,6 +75,7 @@
     border-radius: 10px;
     cursor: pointer;
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;   /* no bluish overlay on tap (mobile) */
   }
 
   aside.hud { display: grid; gap: 12px; align-content: start; }
@@ -106,6 +107,7 @@
     font: inherit;
     font-size: 14px;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
   button:hover { background: #22314c; border-color: #33465f; }
   button:active { transform: translateY(1px); }
@@ -489,16 +491,21 @@
   let W = 640, H = 560, dpr = 1, unit = 100, cx = 320, cy = 280, M = null, bgGrad = null;
 
   function resize() {
-    W = canvas.clientWidth || 640;
-    H = canvas.clientHeight || 560;
-    dpr = Math.min(window.devicePixelRatio || 1, cfg.dprCap);
-    canvas.width = Math.round(W * dpr);
-    canvas.height = Math.round(H * dpr);
+    const w = canvas.clientWidth || 640, h = canvas.clientHeight || 560;
+    const d = Math.min(window.devicePixelRatio || 1, cfg.dprCap);
+    const nw = Math.round(w * d), nh = Math.round(h * d);
+    if (nw === canvas.width && nh === canvas.height && w === W && h === H && d === dpr) return;
+    W = w; H = h; dpr = d;
+    canvas.width = nw;          // assigning width/height clears the canvas
+    canvas.height = nh;
     fitCanvas();
     bgGrad = ctx.createRadialGradient(cx, cy - H * 0.12, 10, cx, cy, Math.max(W, H) * 0.75);
     bgGrad.addColorStop(0, '#1b2b46');
     bgGrad.addColorStop(1, '#0e1727');
     state.dirty = true;
+    // Mobile browsers fire resize on scroll/zoom/toolbar changes; drawing in the same
+    // task means the canvas is never presented blank between the clear and the next frame.
+    if (!document.hidden) render(performance.now());
   }
 
   // Fit the 5x5x5 bounding box (plus the ground shadow) inside the canvas, so the
