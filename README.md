@@ -79,8 +79,10 @@ coordinates landing on the wrong face, stale `state.faces` between pick and pixe
 `pointInPoly` setting `inside = true` instead of toggling it — the even-odd rule needs a toggle,
 so any point to the left of a polygon was reported as inside it and clicks on the left and top
 faces selected the wrong cube, the rotation never animated (`state.rot.angle` was reset but never
-incremented, so the board snapped after `rotMs` instead of sweeping), and the Android tap
-highlight painting a bluish overlay over the whole canvas on touch (absent on desktop). Also: the
+incremented, so the board snapped after `rotMs` instead of sweeping), the fill keyed by the
+*logical* grid direction so the shade jumped at the commit (a colour pop at the end of every
+rotation — it now ramps with the angle, matching the table at `t = 0` and `t = 1`), and the Android
+tap highlight painting a bluish overlay over the whole canvas on touch (absent on desktop). Also: the
 two-column layout had no breakpoint, so a phone in portrait gave the canvas ~60px of width;
 narrow screens now stack menus above the cube and the cube is fitted to the canvas instead of
 using a fixed `unit`.

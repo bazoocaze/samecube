@@ -224,8 +224,23 @@
     const rgb = rgbOf(p.hex), out = {};
     for (const d of DIRS) out[key(d)] = `rgb(${rgb.map(v => Math.round(v * SHADE[key(d)]))})`;
     out.sel = `rgb(${rgb.map(v => Math.min(255, Math.round(v * 1.12) + 22))})`;
+    out.rgb = rgb;
     return out;
   });
+
+  // Shade follows the face's current orientation during the rotation, so the colour
+  // ramps over the sweep instead of jumping at the commit. rotDirN is the vector part
+  // of rotIndex; at t = 0 and t = 1 it matches SHADE exactly.
+  const rotDirN = (n, axis, dir) => axis === 'y'
+    ? (dir > 0 ? [n[2], n[1], -n[0]] : [-n[2], n[1], n[0]])
+    : (dir > 0 ? [n[0], n[2], -n[1]] : [-n[0], -n[2], n[1]]);
+
+  function fillAt(color, n, t) {
+    const a = SHADE[key(n)], b = SHADE[key(rotDirN(n, state.rot.axis, state.rot.dir))];
+    const s = a + (b - a) * t;
+    const rgb = FILL[color].rgb;
+    return `rgb(${rgb.map(v => Math.min(255, Math.round(v * s)))})`;
+  }
 
   // ---------------------------------------------------------------- rng
   let seed = cfg.seed || (Math.random() * 0xffffffff) >>> 0;
@@ -573,6 +588,7 @@
   function addCube(faces, cube, c, scale, color, selected, noCull) {
     const [gx, gy, gz] = xyz(cube);
     const cubeDepth = project(c).depth;
+    const t = state.phase === 'rotate' ? state.rot.angle / 90 : 0;
     for (let d = 0; d < 6; d++) {
       const n = DIRS[d];
       if (!noCull) {
@@ -587,7 +603,7 @@
         project([c[0] + h*(n[0] + s1*u[0] + s2*v[0]), c[1] + h*(n[1] + s1*u[1] + s2*v[1]), c[2] + h*(n[2] + s1*u[2] + s2*v[2])])
       );
       const depth = project([c[0] + n[0]*h, c[1] + n[1]*h, c[2] + n[2]*h]).depth;
-      faces.push({ pts, depth, cubeDepth, fill: selected ? FILL[color].sel : FILL[color][key(n)], cube, color, selected, n });
+      faces.push({ pts, depth, cubeDepth, fill: selected ? FILL[color].sel : (t > 0 ? fillAt(color, n, t) : FILL[color][key(n)]), cube, color, selected, n });
     }
   }
 

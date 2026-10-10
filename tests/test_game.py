@@ -172,6 +172,36 @@ mid = [a for a in angles if 0 < a < 90]
 check(len(mid) >= 3, f"angle passed through intermediate values ({len(mid)} of {len(angles)} samples, max {round(max(angles), 1)})")
 check(page.evaluate("() => window.cubegame.state.rot.angle") == 0, "angle reset to 0 after the commit")
 
+print("\nface shade follows the sweep (no colour jump at the commit)")
+set_board(page, "(x, y, z) => 0")                       # uniform colour, full board
+probe = idx(page, 2, 2, N - 1)                          # surface cube, front face visible
+
+def fill_at(angle, i, n):
+    """Freeze the angle and read the fill in the SAME evaluate: an rAF tick between two
+    calls would recompute state.rot.angle from time and clobber the frozen value."""
+    return page.evaluate("""([angle, i, n]) => {
+      const g = window.cubegame;
+      g.state.rot = { axis: 'y', angle, dir: 1 };
+      g.state.phase = 'rotate';
+      g.render(performance.now());
+      const f = g.state.faces.filter(f => f.cube === i && f.n.join(',') === n);
+      return f.length ? f[0].fill : null;
+    }""", [angle, i, n])
+
+f0, f45, f90 = fill_at(0, probe, '0,0,1'), fill_at(45, probe, '0,0,1'), fill_at(90, probe, '0,0,1')
+check(f0 and f45 and f90 and f45 != f0 and f45 != f90,
+      f"shade ramps through the sweep ({f0} -> {f45} -> {f90})")
+c0, c45, c90 = [parse_rgb(f) for f in (f0, f45, f90)]
+check(all(c45[k] < c0[k] for k in range(3)) and all(c90[k] < c45[k] for k in range(3)),
+      f"ramp is monotonic per channel ({c0} -> {c45} -> {c90}, SHADE 0.86 -> 0.79 -> 0.72)")
+after = page.evaluate("""([i, n]) => {
+  const g = window.cubegame; g.commitRotation(); g.state.rot.angle = 0; g.state.phase = 'idle';
+  g.render(performance.now());
+  const f = g.state.faces.filter(f => f.cube === i && f.n.join(',') === n);
+  return f.length ? f[0].fill : null;
+}""", [idx(page, N - 1, 2, 2), '1,0,0'])   # (2,2,N-1) -> (N-1,2,2); the face now faces +x
+check(after == f90, f"no colour jump at the commit ({f90} == {after})")
+
 print("\nundo")
 set_board(page, "(x, y, z) => 0")
 wait_idle(page)

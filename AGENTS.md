@@ -67,6 +67,10 @@ tests/logic_test.js   # deterministic logic test, no browser
     transparent`) — on Android Chromium paints one on touch input only, which looks like a bluish
     flash over the whole canvas. The game's own selection highlight is the lightened palette colour
     (`FILL[color].sel`), which is a different thing and must not be confused with it.
+11. The face shade must follow the **animated** orientation, not the logical grid direction:
+    `fillAt` blends `SHADE[n]` → `SHADE[rotDirN(n)]` over `t = angle / 90`, so the value at `t = 1`
+    equals the fill after the commit (no colour pop). `rotDirN` must stay the vector part of
+    `rotIndex` (`y` → `(z, y, -x)`, `x` → `(x, z, -y)`).
 
 ## Known harness gotchas (learned the hard way)
 
@@ -84,6 +88,8 @@ tests/logic_test.js   # deterministic logic test, no browser
 - The loop renders only when `state.dirty` is set (or an animation is running) and the tab is
   visible, and pop/fall/rotate animations are time-parametric — so to look at an intermediate frame
   you must freeze the value (e.g. `state.rot.angle = 45`, `phase = 'idle'`) and call `render()`.
+  Freezing and reading must happen in the **same** evaluate: an rAF tick between two calls
+  recomputes `state.rot.angle` from `now - tRot` and clobbers the frozen value.
 - Assigning `canvas.width`/`height` clears the canvas; `resize()` only writes them when the size
   actually changed, and renders in the same task as the clear. Mobile fires `resize` on scroll and
   toolbar changes, so an unconditional resize+render there shows a blank frame between taps.
