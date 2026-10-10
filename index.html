@@ -35,7 +35,8 @@
   }
 
   .app {
-    min-height: 100%;
+    min-height: 100vh;
+    min-height: 100svh;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 300px;
     gap: 18px;
@@ -112,6 +113,24 @@
   button.key { font-size: 16px; }
 
   .hintline { color: var(--muted); font-size: 12.5px; min-height: 2.2em; }
+
+  /* Narrow screens (phone in portrait): menus on top, cube below them. */
+  @media (max-width: 760px) {
+    .app {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px;
+    }
+    header.title { flex-wrap: wrap; gap: 6px; }
+    header.title h1 { font-size: 18px; }
+    aside.hud { order: 1; }
+    main { order: 2; flex: 1 1 auto; min-height: 220px; }
+    canvas { height: 100%; min-height: 220px; }
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .stat b { font-size: 18px; }
+    button { padding: 12px; }
+  }
   kbd {
     background: #22314c; border: 1px solid var(--line); border-radius: 6px;
     padding: 1px 6px; font: 12px/1.4 ui-monospace, monospace;
@@ -130,10 +149,12 @@
   </main>
 
   <aside class="hud">
-    <div class="stat"><b id="score">0</b><span>score</span></div>
-    <div class="stat"><b id="best">0</b><span>best</span></div>
-    <div class="stat chain"><b id="chain">1.0×</b><span>chain</span></div>
-    <div class="stat"><b id="left">125</b><span>cubes left</span></div>
+    <div class="stats">
+      <div class="stat"><b id="score">0</b><span>score</span></div>
+      <div class="stat"><b id="best">0</b><span>best</span></div>
+      <div class="stat chain"><b id="chain">1.0×</b><span>chain</span></div>
+      <div class="stat"><b id="left">125</b><span>cubes left</span></div>
+    </div>
 
     <div class="row">
       <button class="key" id="rotL" title="rotate left (←)">⟲</button>
@@ -473,12 +494,31 @@
     dpr = Math.min(window.devicePixelRatio || 1, cfg.dprCap);
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
-    unit = Math.min(W, H) * 0.205;
-    cx = W / 2; cy = H / 2 + H * 0.03;
+    fitCanvas();
     bgGrad = ctx.createRadialGradient(cx, cy - H * 0.12, 10, cx, cy, Math.max(W, H) * 0.75);
     bgGrad.addColorStop(0, '#1b2b46');
     bgGrad.addColorStop(1, '#0e1727');
     state.dirty = true;
+  }
+
+  // Fit the 5x5x5 bounding box (plus the ground shadow) inside the canvas, so the
+  // cube is never clipped on narrow screens (phone in portrait).
+  function fitCanvas() {
+    const M0 = mul(rotY(cam.yaw), rotX(-cam.pitch));
+    let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+    for (let i = 0; i < 8; i++) {
+      const c = [i & 1 ? N / 2 : -N / 2, i & 2 ? N / 2 : -N / 2, i & 4 ? N / 2 : -N / 2];
+      const v = applyM(M0, c);
+      const k = cam.focal / (cam.focal + cam.dist - v[2]);
+      const x = v[0] * k, y = -v[1] * k;
+      if (x < minx) minx = x; if (x > maxx) maxx = x;
+      if (y < miny) miny = y; if (y > maxy) maxy = y;
+    }
+    maxy = Math.max(maxy, N * 0.54);                 // ground shadow under the cube
+    const margin = Math.min(W, H) * 0.06;
+    unit = Math.min((W - 2 * margin) / (maxx - minx), (H - 2 * margin) / (maxy - miny));
+    cx = (W - (minx + maxx) * unit) / 2;
+    cy = (H - (miny + maxy) * unit) / 2;
   }
 
   function project(p) {
@@ -548,7 +588,7 @@
     let inside = false;
     for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
       const a = pts[i], b = pts[j];
-      if ((a.y > py) !== (b.y > py) && px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x) inside = true;
+      if ((a.y > py) !== (b.y > py) && px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x) inside = !inside;
     }
     return inside;
   }

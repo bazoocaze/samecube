@@ -64,10 +64,18 @@ Harness notes:
   on a neighbouring face.
 - The tab must be foregrounded (`bring_to_front`), otherwise Chrome throttles
   `requestAnimationFrame` and the render loop stops.
+- Layout is responsive: two columns when wide, and on screens narrower than 760px the menus go
+  on top and the cube below them (`flex` column, `aside` order 1). The cube is fitted to the
+  canvas from the projected bounding box of the 5×5×5 grid, so it is never clipped.
 
 Bugs found by the tests: inverted camera pitch sign (top faces were culled and bottom faces
 drawn), canvas taller than the viewport (clicks landed outside it), fractional click
-coordinates landing on the wrong face, and stale `state.faces` between pick and pixel read.
+coordinates landing on the wrong face, stale `state.faces` between pick and pixel read, and
+`pointInPoly` setting `inside = true` instead of toggling it — the even-odd rule needs a toggle,
+so any point to the left of a polygon was reported as inside it and clicks on the left and top
+faces selected the wrong cube. Also: the two-column layout had no breakpoint, so a phone in
+portrait gave the canvas ~60px of width; narrow screens now stack menus above the cube and the
+cube is fitted to the canvas instead of using a fixed `unit`.
 
 ## License
 

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from browser_lib import (  # noqa: E402
     open_game, wait_idle, read_state, hud, screen_pos, pick_face, pick_cube, topmost_cube,
     pixel_at, parse_rgb, nearest_palette, is_shade, largest_group, find_group, idx, xyz, click_cube,
-    hover_cube, rotate, compact_columns, multiset, clickable, N,
+    hover_cube, rotate, compact_columns, multiset, clickable, refit, N,
 )
 
 fails = []
@@ -66,6 +66,49 @@ if cands:
         check(d < 900, f"pixel at cube {i} equals the face fill the painter draws there {want} vs {px} (d={d})")
         pal, dist = nearest_palette(px)
         check(is_shade(px, s["cells"][i]), f"that pixel is the cube's palette colour scaled by the face shade ({s['cells'][i]}, nearest reads {pal} d={dist})")
+
+print("\nface picking must be even-odd, not 'any crossing'")
+mismatch = page.evaluate("""() => {
+  const g = window.cubegame;
+  g.render(performance.now());
+  const bad = [];
+  for (const f of g.state.faces) {
+    let x = 0, y = 0;
+    for (const p of f.pts) { x += p.x; y += p.y; }
+    x /= f.pts.length; y /= f.pts.length;
+    const hit = g.pickFace(x, y);
+    if (!hit || hit.cube !== f.cube) bad.push({ cube: f.cube, n: f.n.join(','), got: hit ? hit.cube : null });
+  }
+  return bad;
+}""")
+check(not mismatch, f"pickFace at every rendered face centroid returns that face's own cube ({len(mismatch)} mismatches)")
+
+print("\nnarrow viewport (phone in portrait): menus above the cube, cube fits the canvas")
+page.set_viewport_size({"width": 390, "height": 844})
+refit(page)
+layout = page.evaluate("""() => {
+  const app = document.querySelector('.app');
+  const main = document.querySelector('main'), hud = document.querySelector('aside.hud');
+  const c = document.getElementById('board');
+  const g = window.cubegame; g.render(performance.now());
+  let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+  for (const f of g.state.faces) for (const p of f.pts) {
+    minx = Math.min(minx, p.x); maxx = Math.max(maxx, p.x);
+    miny = Math.min(miny, p.y); maxy = Math.max(maxy, p.y);
+  }
+  return {
+    display: getComputedStyle(app).display,
+    hudAbove: hud.getBoundingClientRect().bottom <= main.getBoundingClientRect().top,
+    css: [c.clientWidth, c.clientHeight],
+    bounds: [Math.round(minx), Math.round(miny), Math.round(maxx), Math.round(maxy)],
+  };
+}""")
+check(layout["display"] == "flex", f"narrow screens stack the panels (display={layout['display']})")
+check(layout["hudAbove"], f"menus come before the cube (hud bottom <= main top: {layout['hudAbove']})")
+b, w, h = layout["bounds"], *layout["css"]
+check(b[0] >= 0 and b[1] >= 0 and b[2] <= w and b[3] <= h, f"cube fits inside the canvas {b} within {w}x{h}")
+page.set_viewport_size({"width": 1000, "height": 700})
+refit(page)
 
 print("\ntwo-click select / pop through the UI (deterministic board)")
 set_board(page, "(x, y, z) => (x >= N - 2 && y >= N - 2 && z >= N - 2) ? 0 : 1")   # 8-block at the corner nearest the camera

@@ -55,6 +55,10 @@ tests/logic_test.js   # deterministic logic test, no browser
 5. Game over when no group ≥ 2 exists among **exposed** cubes.
 6. The pixel at a cube's centre equals the fill the painter draws there (painter order =
    whole-cube depth, far first).
+7. `pointInPoly` must use the **even-odd rule** (toggle `inside`), not "any crossing": picking at
+   the centroid of every rendered face must return the cube that owns that face.
+8. On a viewport narrower than 760px the panels stack (menus above the cube) and the projected
+   cube must fit inside the canvas.
 
 ## Known harness gotchas (learned the hard way)
 
@@ -69,6 +73,8 @@ tests/logic_test.js   # deterministic logic test, no browser
 - Face shading multiplies all channels by one scalar, so "nearest palette colour" is unreliable —
   use `is_shade()` (channel ratios) instead.
 - Input events only reach the active tab; helpers call `bring_to_front()`.
+- A second click on a cube of the **already selected group** pops it. A per-cube click test must
+  use one cube per group (or check for a pop) — otherwise it measures a pop, not a selection.
 
 ## Running
 
