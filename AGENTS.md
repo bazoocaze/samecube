@@ -6,6 +6,8 @@ A SameGame (Clickomania) variant played on a **5×5×5 cube** instead of a 2D gr
 Single-file game (`index.html`, no dependencies, no build step), plus a Python/Playwright
 test harness that drives the real page through an already-installed Chrome over CDP.
 
+Live demo: [bazoocaze.github.io/samecube](https://bazoocaze.github.io/samecube/)
+
 Game rules (the contract — do not change without being asked):
 
 - Group = all orthogonally connected same-colour cubes (6 neighbours), **including hidden ones**.

@@ -1,6 +1,7 @@
 # Cubes
 
 SameGame played on a **5×5×5 cube** — a single HTML file, no dependencies.
+MIT licensed — [live demo](https://bazoocaze.github.io/samecube/).
 
 ```
 cube_colors/
