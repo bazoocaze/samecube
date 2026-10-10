@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<title>Cubes</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --bg2: #121c30;
+    --panel: #141f33;
+    --panel2: #1a2740;
+    --line: #24334e;
+    --text: #e8eef7;
+    --muted: #8ea0b8;
+    --accent: #4aa8ff;
+    --good: #3ddc97;
+    --radius: 14px;
+    --shadow: 0 18px 40px rgba(0,0,0,.45);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background:
+      radial-gradient(1200px 700px at 20% -10%, #1a2740 0%, transparent 60%),
+      radial-gradient(900px 600px at 110% 110%, #16223a 0%, transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font: 400 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app {
+    min-height: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 18px;
+    padding: 18px;
+    max-width: 1120px;
+    margin: 0 auto;
+  }
+
+  header.title {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  header.title h1 {
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #9fd8b4;
+  }
+  header.title .sub { color: var(--muted); font-size: 13px; }
+
+  main {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 12px;
+    display: grid;
+  }
+  canvas {
+    width: 100%;
+    height: min(560px, calc(100vh - 24px));
+    display: block;
+    border-radius: 10px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  aside.hud { display: grid; gap: 12px; align-content: start; }
+
+  .stat {
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .stat b { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+  .stat.chain b { color: var(--good); }
+
+  .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .row.two { grid-template-columns: repeat(2, 1fr); }
+
+  button {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--panel2);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:hover { background: #22314c; border-color: #33465f; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.key { font-size: 16px; }
+
+  .hintline { color: var(--muted); font-size: 12.5px; min-height: 2.2em; }
+  kbd {
+    background: #22314c; border: 1px solid var(--line); border-radius: 6px;
+    padding: 1px 6px; font: 12px/1.4 ui-monospace, monospace;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="title">
+    <h1>Cubes</h1>
+    <span class="sub">5×5×5 · click selects a connected group, click again pops it</span>
+  </header>
+
+  <main>
+    <canvas id="board" aria-label="cube board"></canvas>
+  </main>
+
+  <aside class="hud">
+    <div class="stat"><b id="score">0</b><span>score</span></div>
+    <div class="stat"><b id="best">0</b><span>best</span></div>
+    <div class="stat chain"><b id="chain">1.0×</b><span>chain</span></div>
+    <div class="stat"><b id="left">125</b><span>cubes left</span></div>
+
+    <div class="row">
+      <button class="key" id="rotL" title="rotate left (←)">⟲</button>
+      <button class="key" id="rotR" title="rotate right (→)">⟳</button>
+      <button class="key" id="rotU" title="tilt up (↑)">▲</button>
+      <button class="key" id="rotD" title="tilt down (↓)">▼</button>
+    </div>
+
+    <div class="row two">
+      <button id="btnNew">New game</button>
+      <button id="btnUndo">Undo</button>
+    </div>
+    <div class="row two">
+      <button id="btnShuffle">Shuffle</button>
+      <button id="btnSound">Sound: on</button>
+    </div>
+
+    <p class="hintline" id="hintline">
+      <kbd>←</kbd> <kbd>→</kbd> spin · <kbd>↑</kbd> <kbd>↓</kbd> tilt ·
+      <kbd>N</kbd> new · <kbd>U</kbd> undo · <kbd>S</kbd> shuffle · <kbd>M</kbd> mute
+    </p>
+  </aside>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------------------------------------------------------------- config
+  const cfg = {
+    N: 5,
+    minGroup: 2,
+    clearBonus: 2000,
+    chainStep: 0.5,
+    chainCap: 4,
+    chainWindow: 12000,   // ms of inactivity before the chain decays
+    popMs: 180,
+    fallMs: 340,
+    rotMs: 260,
+    seed: 0,               // 0 = random seed; tests pin it
+    dprCap: 1.5,
+  };
+
+  const PALETTE = [
+    { name: 'red',   hex: '#e8434f' },
+    { name: 'green', hex: '#45c86a' },
+    { name: 'blue',  hex: '#3f7ee6' },
+    { name: 'pink',  hex: '#f2b8d0' },
+    { name: 'white', hex: '#eef2f6' },
+    { name: 'amber', hex: '#f7a13b' },
+  ];
+
+  const N = cfg.N, TOTAL = N * N * N;
+  const DIRS = [[1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1]];
+  const PERP = DIRS.map(d => d[0] ? [[0,1,0],[0,0,1]] : d[1] ? [[0,0,1],[1,0,0]] : [[1,0,0],[0,1,0]]);
+  const SHADE = { '1,0,0': 0.72, '-1,0,0': 0.58, '0,1,0': 1.00, '0,-1,0': 0.44, '0,0,1': 0.86, '0,0,-1': 0.50 };
+
+  const idx = (x, y, z) => (y * N + z) * N + x;
+  const xyz = (i) => [i % N, (i / (N * N) | 0), (i / N | 0) % N];
+  const key = (d) => d.join(',');
+
+  // precomputed face colours (flat fills — no per-frame gradients)
+  const rgbOf = (h) => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+  const FILL = PALETTE.map(p => {
+    const rgb = rgbOf(p.hex), out = {};
+    for (const d of DIRS) out[key(d)] = `rgb(${rgb.map(v => Math.round(v * SHADE[key(d)]))})`;
+    out.sel = `rgb(${rgb.map(v => Math.min(255, Math.round(v * 1.12) + 22))})`;
+    return out;
+  });
+
+  // ---------------------------------------------------------------- rng
+  let seed = cfg.seed || (Math.random() * 0xffffffff) >>> 0;
+  function rng() {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  function loadBest() { try { return Number(localStorage.getItem(key2()) || 0); } catch { return 0; } }
+  function saveBest() { try { localStorage.setItem(key2(), String(state.best)); } catch {} }
+  function key2() { return 'cubegame.best.' + cfg.N; }
+
+  // ---------------------------------------------------------------- state
+  const state = {
+    cells: new Array(TOTAL).fill(null),   // colour index, null = empty
+    score: 0, best: loadBest(), moves: 0,
+    chain: 0, chainAt: 0,
+    sel: [], hover: -1,
+    phase: 'idle',                         // idle | pop | fall | rotate
+    tPop: 0, tFall: 0, tRot: 0,
+    rot: { axis: 'y', angle: 0, dir: 1 },
+    popping: [], falling: [], moving: new Set(),
+    particles: [], popups: [],
+    undoStack: [],
+    over: false,
+    faces: [], dirty: true,
+  };
+
+  // ---------------------------------------------------------------- logic
+  function newGame() {
+    for (let i = 0; i < TOTAL; i++) state.cells[i] = Math.floor(rng() * PALETTE.length);
+    state.score = 0; state.moves = 0; state.chain = 0; state.chainAt = performance.now();
+    state.sel = []; state.hover = -1; state.over = false;
+    state.popping = []; state.falling = []; state.moving.clear();
+    state.particles = []; state.popups = []; state.undoStack = [];
+    state.phase = 'idle';
+    state.dirty = true;
+    hud();
+  }
+
+  function findGroup(i) {
+    const c = state.cells[i];
+    if (c === null) return [];
+    const seen = new Set([i]), out = [i], stack = [i];
+    while (stack.length) {
+      const cur = stack.pop();
+      const [x, y, z] = xyz(cur);
+      for (const d of DIRS) {
+        const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+        if (nx < 0 || ny < 0 || nz < 0 || nx >= N || ny >= N || nz >= N) continue;
+        const j = idx(nx, ny, nz);
+        if (state.cells[j] === c && !seen.has(j)) { seen.add(j); stack.push(j); out.push(j); }
+      }
+    }
+    return out;
+  }
+
+  // a cube is clickable only if at least one of its faces is exposed
+  function exposed(i) {
+    const [x, y, z] = xyz(i);
+    for (const d of DIRS) {
+      const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+      if (nx < 0 || ny < 0 || nz < 0 || nx >= N || ny >= N || nz >= N) return true;
+      if (state.cells[idx(nx, ny, nz)] === null) return true;
+    }
+    return false;
+  }
+
+  function largestGroup() {
+    let best = [];
+    for (let i = 0; i < TOTAL; i++) {
+      if (state.cells[i] === null || !exposed(i)) continue;
+      const g = findGroup(i);
+      if (g.length > best.length) best = g;
+    }
+    return best;
+  }
+
+  function hasMove() { return largestGroup().length >= cfg.minGroup; }
+  function cubesLeft() { return state.cells.reduce((n, c) => n + (c === null ? 0 : 1), 0); }
+  function pointsFor(n) { return n * (n - 1) * chainMult(); }
+  function chainMult() { return Math.min(1 + cfg.chainStep * state.chain, cfg.chainCap); }
+
+  function snapshot() {
+    state.undoStack.push({
+      cells: state.cells.slice(), score: state.score, moves: state.moves, chain: state.chain,
+    });
+    if (state.undoStack.length > 60) state.undoStack.shift();
+  }
+
+  // Gravity runs only after a destruction — rotation never compacts the cube.
+  function gravity() {
+    const next = new Array(TOTAL).fill(null);
+    const moves = [];
+    for (let x = 0; x < N; x++) {
+      for (let z = 0; z < N; z++) {
+        let write = 0;
+        for (let y = 0; y < N; y++) {
+          const i = idx(x, y, z);
+          const c = state.cells[i];
+          if (c === null) continue;
+          const t = idx(x, write, z);
+          next[t] = c;
+          if (t !== i) moves.push({ from: i, to: t, color: c });
+          write++;
+        }
+      }
+    }
+    state.cells = next;
+    return moves;
+  }
+
+  function popGroup(group) {
+    if (group.length < cfg.minGroup) return 0;
+    snapshot();
+    const now = performance.now();
+    if (now - state.chainAt > cfg.chainWindow) state.chain = 0;
+
+    const pts = pointsFor(group.length);
+    state.score += pts;
+    state.moves++;
+    state.chain++;
+    state.chainAt = now;
+    if (state.score > state.best) { state.best = state.score; saveBest(); }
+
+    for (const i of group) {
+      const [x, y, z] = xyz(i);
+      state.popping.push({ i, color: state.cells[i], p: [x + 0.5 - N/2, y + 0.5 - N/2, z + 0.5 - N/2] });
+      for (let k = 0; k < 5; k++) {
+        state.particles.push({
+          p: [x + 0.5 - N/2, y + 0.5 - N/2, z + 0.5 - N/2],
+          v: [(rng() - 0.5) * 1.6, rng() * 1.4, (rng() - 0.5) * 1.6],
+          life: 1, color: state.cells[i],
+        });
+      }
+      state.cells[i] = null;
+    }
+
+    const cx = group.reduce((s, i) => s + xyz(i)[0], 0) / group.length;
+    const cy = group.reduce((s, i) => s + xyz(i)[1], 0) / group.length;
+    const cz = group.reduce((s, i) => s + xyz(i)[2], 0) / group.length;
+    state.popups.push({ p: [cx + 0.5 - N/2, cy + 0.5 - N/2, cz + 0.5 - N/2], text: `+${pts}`, born: now });
+
+    state.falling = gravity();
+    state.moving = new Set(state.falling.map(m => m.to));
+    state.sel = [];
+    state.phase = 'pop';
+    state.tPop = now;
+    state.dirty = true;
+    hud();
+    blip(520 + group.length * 22);
+    return pts;
+  }
+
+  function undo() {
+    const s = state.undoStack.pop();
+    if (!s) return false;
+    state.cells = s.cells.slice();
+    state.score = s.score; state.moves = s.moves; state.chain = s.chain;
+    state.sel = []; state.over = false;
+    state.popping = []; state.falling = []; state.moving.clear();
+    state.phase = 'idle';
+    state.dirty = true;
+    hud();
+    return true;
+  }
+
+  function shuffle() {
+    const live = [];
+    for (let i = 0; i < TOTAL; i++) if (state.cells[i] !== null) live.push(i);
+    const bag = live.map(i => state.cells[i]);
+    for (let k = bag.length - 1; k > 0; k--) {
+      const j = Math.floor(rng() * (k + 1));
+      [bag[k], bag[j]] = [bag[j], bag[k]];
+    }
+    live.forEach((i, k) => { state.cells[i] = bag[k]; });
+    state.sel = [];
+    state.chain = 0;
+    state.dirty = true;
+    hud();
+    return true;
+  }
+
+  function rotate(axis, dir) {
+    if (state.phase !== 'idle') return false;
+    state.rot = { axis, angle: 0, dir };
+    state.phase = 'rotate';
+    state.tRot = performance.now();
+    state.dirty = true;
+    return true;
+  }
+
+  function rotIndex(i, axis, dir) {
+    const [x, y, z] = xyz(i);
+    let nx = x, ny = y, nz = z;
+    if (axis === 'y') { nx = dir > 0 ? z : N - 1 - z; nz = dir > 0 ? N - 1 - x : x; }
+    else { ny = dir > 0 ? z : N - 1 - z; nz = dir > 0 ? N - 1 - y : y; }
+    return idx(nx, ny, nz);
+  }
+
+  function commitRotation() {
+    const { axis, dir } = state.rot;
+    const next = new Array(TOTAL).fill(null);
+    for (let i = 0; i < TOTAL; i++) {
+      const c = state.cells[i];
+      if (c === null) continue;
+      next[rotIndex(i, axis, dir)] = c;
+    }
+    state.cells = next;
+    state.sel = state.sel.map(i => rotIndex(i, axis, dir)).filter((i) => state.cells[i] !== null);
+    state.hover = -1;
+  }
+
+  function clickCube(i) {
+    if (state.phase !== 'idle' || i < 0 || state.cells[i] === null || state.over) return null;
+    const g = findGroup(i);
+    if (g.length < cfg.minGroup) { state.sel = []; state.chain = 0; state.dirty = true; hud(); return null; }
+    if (state.sel.includes(i)) return popGroup(state.sel);
+    if (state.sel.length && !state.sel.includes(i)) state.chain = 0;   // reselecting breaks the chain
+    state.sel = g;
+    state.dirty = true;
+    hud();
+    return null;
+  }
+
+  function checkOver() {
+    if (state.over) return;
+    if (cubesLeft() === 0) {
+      state.score += cfg.clearBonus;
+      state.over = true;
+    } else if (!hasMove()) {
+      state.over = true;
+    }
+    if (state.over && state.score > state.best) { state.best = state.score; saveBest(); }
+    hud();
+  }
+
+  // ---------------------------------------------------------------- view
+  const cam = { yaw: -32 * Math.PI / 180, pitch: 24 * Math.PI / 180, dist: 7.2, focal: 11 };
+  const TAU = Math.PI * 2;
+
+  function rotY(a) { const c = Math.cos(a), s = Math.sin(a); return [c,0,s, 0,1,0, -s,0,c]; }
+  function rotX(a) { const c = Math.cos(a), s = Math.sin(a); return [1,0,0, 0,c,s, 0,-s,c]; }
+  function mul(a, b) {
+    const r = new Array(9);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+      let s = 0; for (let k = 0; k < 3; k++) s += a[i*3+k] * b[k*3+j];
+      r[i*3+j] = s;
+    }
+    return r;
+  }
+  const applyM = (m, p) => [
+    m[0]*p[0] + m[1]*p[1] + m[2]*p[2],
+    m[3]*p[0] + m[4]*p[1] + m[5]*p[2],
+    m[6]*p[0] + m[7]*p[1] + m[8]*p[2],
+  ];
+
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  let W = 640, H = 560, dpr = 1, unit = 100, cx = 320, cy = 280, M = null, bgGrad = null;
+
+  function resize() {
+    W = canvas.clientWidth || 640;
+    H = canvas.clientHeight || 560;
+    dpr = Math.min(window.devicePixelRatio || 1, cfg.dprCap);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    unit = Math.min(W, H) * 0.205;
+    cx = W / 2; cy = H / 2 + H * 0.03;
+    bgGrad = ctx.createRadialGradient(cx, cy - H * 0.12, 10, cx, cy, Math.max(W, H) * 0.75);
+    bgGrad.addColorStop(0, '#1b2b46');
+    bgGrad.addColorStop(1, '#0e1727');
+    state.dirty = true;
+  }
+
+  function project(p) {
+    const v = applyM(M, p);
+    const depth = cam.dist - v[2];
+    const k = cam.focal / (cam.focal + depth);
+    return { x: cx + v[0] * unit * k, y: cy - v[1] * unit * k, depth, nz: v[2] };
+  }
+
+  function centerOf(i) {
+    const [x, y, z] = xyz(i);
+    return [x + 0.5 - N/2, y + 0.5 - N/2, z + 0.5 - N/2];
+  }
+
+  function collectFaces(now) {
+    M = mul(
+      mul(rotY(cam.yaw), rotX(-cam.pitch)),
+      state.rot.axis === 'y' ? rotY(state.rot.angle * Math.PI / 180 * state.rot.dir) : rotX(state.rot.angle * Math.PI / 180 * state.rot.dir)
+    );
+
+    const faces = [];
+    const selSet = new Set(state.sel);
+    const popT = state.phase === 'pop' ? Math.min(1, (now - state.tPop) / cfg.popMs) : 1;
+    const fallT = state.phase === 'fall' ? Math.min(1, (now - state.tFall) / cfg.fallMs) : 0;
+
+    for (let i = 0; i < TOTAL; i++) {
+      const c = state.cells[i];
+      if (c === null || state.moving.has(i)) continue;
+      addCube(faces, i, centerOf(i), 1, c, selSet.has(i), false);
+    }
+    for (const m of state.falling) {
+      const a = centerOf(m.from), b = centerOf(m.to);
+      const t = fallT * fallT;                       // accelerating fall
+      addCube(faces, m.to, [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t, a[2] + (b[2]-a[2])*t], 1, m.color, selSet.has(m.to), true);
+    }
+    for (const p of state.popping) {
+      if (popT >= 1) continue;
+      addCube(faces, p.i, p.p, 1 - popT, p.color, true, true);
+    }
+
+    faces.sort((a, b) => b.cubeDepth - a.cubeDepth);   // painter: whole cube far first
+    return faces;
+  }
+
+  function addCube(faces, cube, c, scale, color, selected, noCull) {
+    const [gx, gy, gz] = xyz(cube);
+    const cubeDepth = project(c).depth;
+    for (let d = 0; d < 6; d++) {
+      const n = DIRS[d];
+      if (!noCull) {
+        const nx = gx + n[0], ny = gy + n[1], nz = gz + n[2];
+        if (nx >= 0 && ny >= 0 && nz >= 0 && nx < N && ny < N && nz < N && state.cells[idx(nx, ny, nz)] !== null) continue;
+      }
+      const nv = applyM(M, n);
+      if (nv[2] <= 0.02) continue;                   // back-facing
+      const [u, v] = PERP[d];
+      const h = 0.5 * scale;
+      const pts = [[1,1], [-1,1], [-1,-1], [1,-1]].map(([s1, s2]) =>
+        project([c[0] + h*(n[0] + s1*u[0] + s2*v[0]), c[1] + h*(n[1] + s1*u[1] + s2*v[1]), c[2] + h*(n[2] + s1*u[2] + s2*v[2])])
+      );
+      const depth = project([c[0] + n[0]*h, c[1] + n[1]*h, c[2] + n[2]*h]).depth;
+      faces.push({ pts, depth, cubeDepth, fill: selected ? FILL[color].sel : FILL[color][key(n)], cube, color, selected, n });
+    }
+  }
+
+  function pointInPoly(pts, px, py) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const a = pts[i], b = pts[j];
+      if ((a.y > py) !== (b.y > py) && px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x) inside = true;
+    }
+    return inside;
+  }
+
+  function pickFace(px, py) {
+    for (let i = state.faces.length - 1; i >= 0; i--) {
+      if (pointInPoly(state.faces[i].pts, px, py)) return state.faces[i];
+    }
+    return null;
+  }
+
+  function pick(px, py) {
+    const f = pickFace(px, py);
+    return f ? f.cube : -1;
+  }
+
+  function render(now) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = bgGrad || '#101a2b';
+    ctx.fillRect(0, 0, W, H);
+
+    // ground shadow
+    ctx.fillStyle = 'rgba(0,0,0,.28)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + unit * N * 0.40, unit * N * 0.42, unit * N * 0.14, 0, 0, TAU);
+    ctx.fill();
+
+    state.faces = collectFaces(now);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 1;
+    for (const f of state.faces) {
+      ctx.beginPath();
+      ctx.moveTo(f.pts[0].x, f.pts[0].y);
+      for (let i = 1; i < f.pts.length; i++) ctx.lineTo(f.pts[i].x, f.pts[i].y);
+      ctx.closePath();
+      ctx.fillStyle = f.fill;
+      ctx.fill();
+      ctx.strokeStyle = f.selected ? 'rgba(255,255,255,.55)' : 'rgba(8,12,20,.45)';
+      ctx.stroke();
+    }
+
+    // particles
+    for (const p of state.particles) {
+      const q = project(p.p);
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = FILL[p.color][key([0,1,0])];
+      ctx.fillRect(q.x - 2, q.y - 2, 4, 4);
+    }
+    ctx.globalAlpha = 1;
+
+    // score popups
+    ctx.textAlign = 'center';
+    ctx.font = '600 15px ui-sans-serif, system-ui, sans-serif';
+    for (const p of state.popups) {
+      const t = (now - p.born) / 700;
+      if (t >= 1) continue;
+      const q = project(p.p);
+      ctx.globalAlpha = 1 - t;
+      ctx.fillStyle = '#e8eef7';
+      ctx.fillText(p.text, q.x, q.y - 14 - t * 22);
+    }
+    ctx.globalAlpha = 1;
+
+    // selection badge
+    if (state.sel.length >= cfg.minGroup) {
+      const g = state.sel;
+      const c = [
+        g.reduce((s, i) => s + xyz(i)[0], 0) / g.length + 0.5 - N/2,
+        g.reduce((s, i) => s + xyz(i)[1], 0) / g.length + 0.5 - N/2,
+        g.reduce((s, i) => s + xyz(i)[2], 0) / g.length + 0.5 - N/2,
+      ];
+      const q = project(c);
+      const n = g.length, pts = pointsFor(n);
+      const label = `${n} · ${pts}`;
+      ctx.font = '600 14px ui-monospace, monospace';
+      const w = ctx.measureText(label).width + 16;
+      ctx.fillStyle = 'rgba(12,18,30,.85)';
+      ctx.strokeStyle = 'rgba(74,168,255,.6)';
+      ctx.beginPath();
+      ctx.roundRect ? (ctx.roundRect(q.x - w/2, q.y - 46, w, 24, 8), ctx.fill(), ctx.stroke())
+                    : (ctx.fillRect(q.x - w/2, q.y - 46, w, 24), ctx.stroke());
+      ctx.fillStyle = '#9fd8b4';
+      ctx.fillText(label, q.x, q.y - 30);
+    }
+  }
+
+  // ---------------------------------------------------------------- hud
+  const el = (id) => document.getElementById(id);
+  const hudEls = { score: el('score'), best: el('best'), chain: el('chain'), left: el('left') };
+  const hudCache = {};
+  function hud() {
+    const vals = {
+      score: String(state.score),
+      best: String(state.best),
+      chain: chainMult().toFixed(1) + '×',
+      left: String(cubesLeft()),
+    };
+    for (const k in vals) {
+      if (hudCache[k] !== vals[k]) { hudCache[k] = vals[k]; if (hudEls[k]) hudEls[k].textContent = vals[k]; }
+    }
+    const line = state.over
+      ? (cubesLeft() === 0 ? `Board cleared — +${cfg.clearBonus} bonus. Final score ${state.score}.`
+        : `No moves left. Score ${state.score}. Press N for a new game.`)
+      : `Chain ${chainMult().toFixed(1)}× · ${state.sel.length} selected · click again to pop`;
+    const hint = el('hintline');
+    if (hint && hudCache.line !== line) { hudCache.line = line; hint.textContent = line; }
+    const u = el('btnUndo'); if (u) u.disabled = state.undoStack.length === 0;
+  }
+
+  // ---------------------------------------------------------------- sound
+  let ac = null, muted = false;
+  function blip(freq) {
+    if (muted || typeof AudioContext === 'undefined') return;
+    try {
+      ac = ac || new AudioContext();
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'triangle'; o.frequency.value = freq;
+      g.gain.value = 0.05;
+      o.connect(g); g.connect(ac.destination);
+      o.start();
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.18);
+      o.stop(ac.currentTime + 0.2);
+    } catch {}
+  }
+
+  // ---------------------------------------------------------------- loop
+  function step(now) {
+    let dirty = state.dirty;
+
+    if (state.phase === 'pop' && now - state.tPop >= cfg.popMs) {
+      state.phase = 'fall'; state.tFall = now; dirty = true;
+    } else if (state.phase === 'fall' && now - state.tFall >= cfg.fallMs) {
+      state.popping = []; state.falling = []; state.moving.clear();
+      state.phase = 'idle'; dirty = true; checkOver();
+    } else if (state.phase === 'rotate' && now - state.tRot >= cfg.rotMs) {
+      commitRotation(); state.rot.angle = 0; state.phase = 'idle'; dirty = true; checkOver();
+    }
+
+    if (state.phase !== 'idle' || state.particles.length || state.popups.length) dirty = true;
+
+    if (state.particles.length) {
+      const dt = 1 / 60;
+      for (const p of state.particles) {
+        p.p[0] += p.v[0] * dt; p.p[1] += p.v[1] * dt; p.p[2] += p.v[2] * dt;
+        p.v[1] -= 2.2 * dt;
+        p.life -= dt * 1.4;
+      }
+      state.particles = state.particles.filter(p => p.life > 0);
+      dirty = true;
+    }
+    if (state.popups.length) {
+      state.popups = state.popups.filter(p => now - p.born < 700);
+      dirty = true;
+    }
+
+    if (dirty && !document.hidden) { render(now); state.dirty = false; }
+    requestAnimationFrame(step);
+  }
+
+  // ---------------------------------------------------------------- input
+  canvas.addEventListener('pointerdown', (e) => {
+    const r = canvas.getBoundingClientRect();
+    const i = pick(e.clientX - r.left, e.clientY - r.top);
+    if (i >= 0) clickCube(i);
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    const i = pick(e.clientX - r.left, e.clientY - r.top);
+    if (i !== state.hover) { state.hover = i; state.dirty = true; }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const k = e.key;
+    if (k === 'ArrowLeft')  rotate('y', -1);
+    else if (k === 'ArrowRight') rotate('y', 1);
+    else if (k === 'ArrowUp')    rotate('x', 1);
+    else if (k === 'ArrowDown')  rotate('x', -1);
+    else if (k === 'n' || k === 'N') newGame();
+    else if (k === 'u' || k === 'U') undo();
+    else if (k === 's' || k === 'S') shuffle();
+    else if (k === 'm' || k === 'M') {
+      muted = !muted;
+      const b = el('btnSound'); if (b) b.textContent = 'Sound: ' + (muted ? 'off' : 'on');
+    }
+  });
+
+  el('rotL').onclick = () => rotate('y', -1);
+  el('rotR').onclick = () => rotate('y', 1);
+  el('rotU').onclick = () => rotate('x', 1);
+  el('rotD').onclick = () => rotate('x', -1);
+  el('btnNew').onclick = () => newGame();
+  el('btnUndo').onclick = () => undo();
+  el('btnShuffle').onclick = () => shuffle();
+  el('btnSound').onclick = () => {
+    muted = !muted;
+    el('btnSound').textContent = 'Sound: ' + (muted ? 'off' : 'on');
+  };
+
+  // ---------------------------------------------------------------- hook
+  window.cubegame = {
+    state, cfg, PALETTE,
+    newGame, findGroup, largestGroup, hasMove, cubesLeft, exposed,
+    popGroup, gravity, rotate, commitRotation, undo, shuffle, pointsFor, chainMult,
+    pick, pickFace, render, step, hud, clickCube, checkOver, exposed, idx, xyz,
+    FILL, PALETTE,
+    screenPos: (i) => { collectFaces(performance.now()); return project(centerOf(i)); },
+  };
+
+  if (typeof window.addEventListener === 'function') window.addEventListener('resize', resize);
+  resize();
+  newGame();
+  requestAnimationFrame(step);
+})();
+</script>
+</body>
+</html>

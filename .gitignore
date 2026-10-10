@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+tests/screenshot.png
+
+# reference screenshots of the original game, not part of the project
+*.jpeg
