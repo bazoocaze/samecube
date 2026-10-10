@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from browser_lib import (  # noqa: E402
     open_game, wait_idle, read_state, hud, screen_pos, pick_face, pick_cube, topmost_cube,
     pixel_at, parse_rgb, nearest_palette, is_shade, largest_group, find_group, idx, xyz, click_cube,
-    hover_cube, rotate, compact_columns, multiset, clickable, refit, N,
+    hover_cube, rotate, compact_columns, multiset, clickable, refit, drag, drag_at, face_probe, N,
 )
 
 fails = []
@@ -202,6 +202,45 @@ after = page.evaluate("""([i, n]) => {
 }""", [idx(page, N - 1, 2, 2), '1,0,0'])   # (2,2,N-1) -> (N-1,2,2); the face now faces +x
 check(after == f90, f"no colour jump at the commit ({f90} == {after})")
 
+print("\nswipe rotates; a press is a tap only below the drag threshold")
+set_board(page, "(x, y, z) => (x === 1 && y === 2 && z === 4) ? 0 : (x === 1 && y === 2 && z === 3) ? 0 : (x * 3 + y * 5 + z * 7) % 6")
+refit(page)
+
+def rot_perm(dx, dy):
+    """The permutation a swipe must apply — same mapping as rotIndex."""
+    if abs(dx) >= abs(dy):
+        return (lambda x, y, z: (z, y, N - 1 - x)) if dx > 0 else (lambda x, y, z: (N - 1 - z, y, x))
+    return (lambda x, y, z: (x, z, N - 1 - y)) if dy < 0 else (lambda x, y, z: (x, N - 1 - z, y))
+
+def swipe(dx, dy, touch=False):
+    pr = face_probe(page)
+    assert pr, "no clickable face to press on"
+    x, y, z = xyz(page, pr["cube"])
+    before = read_state(page)["cells"]
+    page.mouse.move(round(pr["absX"]), round(pr["absY"]))
+    page.wait_for_timeout(120)
+    h_before = read_state(page)["hover"]
+    drag_at(page, pr["absX"], pr["absY"], dx, dy, touch=touch)
+    mid = read_state(page)                      # before the commit: commitRotation clears hover
+    wait_idle(page)
+    s = read_state(page)
+    after = s["cells"]
+    check(after[idx(page, *rot_perm(dx, dy)(x, y, z))] == before[idx(page, x, y, z)] and after != before,
+          f"swipe ({dx},{dy}) rotated the board (cube at ({x},{y},{z}) moved)")
+    return pr["cube"], h_before, mid, s
+
+probe, h0, mid, s0 = swipe(70, 0)               # horizontal -> y axis
+check(h0 == probe and mid["hover"] == probe, f"hover is not moved while dragging ({h0} -> {mid['hover']})")
+check(mid["sel"] == [], "a swipe does not select")
+swipe(0, -70)                                   # up -> x axis
+
+pr = face_probe(page)
+probe = pr["cube"]
+drag_at(page, pr["absX"], pr["absY"], 8, 0)      # below DRAG_MIN (14 px) -> tap, not a swipe
+s = read_state(page)
+check(s["phase"] == "idle" and probe in s["sel"] and len(s["sel"]) >= 2,
+      f"a short press is still a tap ({s['sel']})")
+swipe(60, 0, touch=True)                         # same gesture through CDP touch
 print("\nundo")
 set_board(page, "(x, y, z) => 0")
 wait_idle(page)

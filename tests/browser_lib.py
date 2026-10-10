@@ -147,6 +147,52 @@ def hover_cube(page, i):
     return page
 
 
+def face_probe(page, min_group=2):
+    """A point provably on a clickable cube's own face: the centroid of a rendered face
+    that pickFace attributes to that cube. Cube centres are often occluded on a full
+    board, so they are not a reliable click point.
+    """
+    return page.evaluate("""(minGroup) => {
+      const g = window.cubegame; g.render(performance.now());
+      const r = document.getElementById('board').getBoundingClientRect();
+      for (const f of g.state.faces) {
+        if (g.findGroup(f.cube).length < minGroup) continue;
+        const p = f.pts;
+        const x = (p[0].x + p[2].x) / 2, y = (p[0].y + p[2].y) / 2;
+        const top = g.pickFace(x, y);
+        if (top && top.cube === f.cube) return { cube: f.cube, x, y, absX: r.left + x, absY: r.top + y };
+      }
+      return null;
+    }""", min_group)
+
+
+def drag_at(page, x, y, dx, dy, touch=False, steps=6):
+    """Press at (x, y), move by (dx, dy) CSS px, release — the game's tap/swipe split.
+    Touch goes through CDP because Playwright's touchscreen API has no drag gesture.
+    """
+    page.bring_to_front()
+    x, y = round(x), round(y)
+    if touch:
+        cdp = page.context.new_cdp_session(page)
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]})
+        for k in range(1, steps + 1):
+            cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints":
+                  [{"x": x + dx * k // steps, "y": y + dy * k // steps}]})
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    else:
+        page.mouse.move(x, y)
+        page.mouse.down()
+        for k in range(1, steps + 1):
+            page.mouse.move(x + dx * k // steps, y + dy * k // steps)
+        page.mouse.up()
+    page.wait_for_timeout(150)
+
+
+def drag(page, i, dx, dy, touch=False):
+    p = screen_pos(page, i)
+    return drag_at(page, p["absX"], p["absY"], dx, dy, touch=touch)
+
+
 def pick_face(page, x, y):
     """Topmost face at canvas-relative CSS px (painter order)."""
     refresh(page)

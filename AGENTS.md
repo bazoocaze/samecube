@@ -71,6 +71,9 @@ tests/logic_test.js   # deterministic logic test, no browser
     `fillAt` blends `SHADE[n]` → `SHADE[rotDirN(n)]` over `t = angle / 90`, so the value at `t = 1`
     equals the fill after the commit (no colour pop). `rotDirN` must stay the vector part of
     `rotIndex` (`y` → `(z, y, -x)`, `x` → `(x, z, -y)`).
+12. A press is a **tap** below `DRAG_MIN` (14 px) and a **swipe** above it: tap selects, swipe
+    rotates (horizontal → `y`, vertical → `x`, same directions as the arrow keys). Hover must not
+    move while pressing, and a swipe must not select.
 
 ## Known harness gotchas (learned the hard way)
 
@@ -85,6 +88,14 @@ tests/logic_test.js   # deterministic logic test, no browser
 - Face shading multiplies all channels by one scalar, so "nearest palette colour" is unreliable —
   use `is_shade()` (channel ratios) instead.
 - Input events only reach the active tab; helpers call `bring_to_front()`.
+- For gesture tests, click on a **rendered face centroid** (`face_probe`), not on the cube centre:
+  on a full board the centre of most cubes is occluded by a nearer face, so `pick` disagrees with
+  the point we pressed.
+- Touch drags need CDP `Input.dispatchTouchEvent` (Playwright's touchscreen API has no drag), and
+  the canvas needs `touch-action: none` — with `manipulation` the browser keeps the gesture for
+  scrolling and the game gets `pointercancel` instead of `pointerup`.
+- `commitRotation()` clears `state.hover`, so a test that checks "hover did not move during the
+  drag" must read it **before** the commit, not after `wait_idle`.
 - The loop renders only when `state.dirty` is set (or an animation is running) and the tab is
   visible, and pop/fall/rotate animations are time-parametric — so to look at an intermediate frame
   you must freeze the value (e.g. `state.rot.angle = 45`, `phase = 'idle'`) and call `render()`.

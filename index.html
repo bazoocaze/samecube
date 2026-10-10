@@ -74,7 +74,7 @@
     display: block;
     border-radius: 10px;
     cursor: pointer;
-    touch-action: manipulation;
+    touch-action: none;                              /* drags must reach the game, not scroll */
     -webkit-tap-highlight-color: transparent;   /* no bluish overlay on tap (mobile) */
   }
 
@@ -777,17 +777,45 @@
   }
 
   // ---------------------------------------------------------------- input
+  const DRAG_MIN = 14;                 // px: below this a press is a tap, above it is a swipe
+  let press = null;
+
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
-    const i = pick(e.clientX - r.left, e.clientY - r.top);
-    if (i >= 0) clickCube(i);
+    press = { x: e.clientX - r.left, y: e.clientY - r.top, id: e.pointerId, moved: false };
+    if (typeof canvas.setPointerCapture === 'function') {
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) {}   // release outside the canvas
+    }
   });
 
   canvas.addEventListener('pointermove', (e) => {
     const r = canvas.getBoundingClientRect();
-    const i = pick(e.clientX - r.left, e.clientY - r.top);
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if (press) {                                     // no hover while dragging
+      if (!press.moved && Math.hypot(x - press.x, y - press.y) >= DRAG_MIN) press.moved = true;
+      return;
+    }
+    const i = pick(x, y);
     if (i !== state.hover) { state.hover = i; state.dirty = true; }
   });
+
+  function release(e) {
+    if (!press) return;
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const dx = x - press.x, dy = y - press.y;
+    if (!press.moved) {
+      const i = pick(x, y);
+      if (i >= 0) clickCube(i);
+    } else if (state.phase === 'idle') {             // swipe = one 90° snap, same axes as the arrows
+      if (Math.abs(dx) >= Math.abs(dy)) rotate('y', dx > 0 ? 1 : -1);
+      else rotate('x', dy > 0 ? -1 : 1);
+    }
+    press = null;
+  }
+
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', () => { press = null; });
 
   document.addEventListener('keydown', (e) => {
     const k = e.key;

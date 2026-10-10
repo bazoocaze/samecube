@@ -25,14 +25,16 @@ cube_colors/
   world-down, applied only after a destruction).
 - Only **visible** cubes can be clicked; a hidden cube joins the group when it becomes exposed.
 - **Rotating** (left/right, up/down, 90° snap, swept over `rotMs`) **never** triggers gravity:
-  floating clusters stay where they are until a destruction happens in their column.
+  floating clusters stay where they are until a destruction happens in their column. Rotate with the
+  arrow keys, the buttons, or a swipe on the canvas — a press under ~14 px is a tap (select), above
+  it is a swipe (rotate).
 - Score for a group of `n`: `n × (n − 1) × chain`, where `chain` grows `1.0 → 1.5 → 2.0 …`
   per consecutive destruction (re-selecting a different group resets the chain).
   Clearing the cube: `+2000` bonus.
 - Best score is kept in `localStorage`.
 
 Extras: undo, shuffle, sound (WebAudio), hover with a `n · points` badge, particles,
-pop animations, keyboard `← → ↑ ↓` (rotate) and `N U S M`.
+pop animations, keyboard `← → ↑ ↓` (rotate) and `N U S M`, swipe to rotate (mouse or touch).
 
 ## Run
 
