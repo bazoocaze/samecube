@@ -30,7 +30,11 @@ scripts/screenshot.py
 tests/browser_lib.py  # shared helpers (Chrome over CDP, visible tab)
 tests/test_game.py    # black-box browser test
 tests/logic_test.js   # deterministic logic test, no browser
+screenshot.png        # the image the README shows
 ```
+
+The README is player-facing (rules, scoring, controls, the play link). Keep test/harness
+details here, not there.
 
 ## Conventions
 
@@ -44,6 +48,9 @@ tests/logic_test.js   # deterministic logic test, no browser
   game logic in Python.
 - Deterministic boards (`set_board`) are preferred over random ones for click/score assertions.
 - The browser tab must stay **visible** during tests (user requirement).
+- `tests/browser_lib.py` exposes `open_game`, `read_state`, `hud`, `screen_pos`, `pick_face`,
+  `pick_cube`, `click_cube`, `hover_cube`, `rotate`, `find_group`, `largest_group`,
+  `compact_columns`, `multiset`, `clickable`, `wait_idle`.
 
 ## Invariants the tests enforce
 
@@ -106,6 +113,20 @@ tests/logic_test.js   # deterministic logic test, no browser
   toolbar changes, so an unconditional resize+render there shows a blank frame between taps.
 - A second click on a cube of the **already selected group** pops it. A per-cube click test must
   use one cube per group (or check for a pop) — otherwise it measures a pop, not a selection.
+
+## Bugs the tests caught
+
+Inverted camera pitch sign (top faces culled, bottom faces drawn); canvas taller than the
+viewport (clicks landed outside it); fractional click coordinates landing on the wrong face;
+stale `state.faces` between a pick and a pixel read; `pointInPoly` setting `inside = true` instead
+of toggling it, so any point left of a polygon counted as inside and clicks on the left and top
+faces selected the wrong cube; the rotation never animated (`state.rot.angle` was reset but never
+incremented, so the board snapped after `rotMs` instead of sweeping); the fill keyed by the
+*logical* grid direction, so the shade jumped at the commit (a colour pop at the end of every
+rotation — it now ramps with the angle and matches the table at `t = 0` and `t = 1`); the Android
+tap highlight painting a bluish overlay over the whole canvas on touch (absent on desktop); and no
+layout breakpoint, so a phone in portrait gave the canvas ~60 px of width (narrow screens now stack
+the menus above the cube, fitted from the projected bounding box instead of a fixed `unit`).
 
 ## Running
 

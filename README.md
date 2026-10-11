@@ -1,93 +1,56 @@
 # Cubes
 
-SameGame played on a **5×5×5 cube** — a single HTML file, no dependencies.
-MIT licensed — [live demo](https://bazoocaze.github.io/samecube/).
+SameGame (Clickomania) played on a **5×5×5 cube** instead of a flat grid.
 
-```
-cube_colors/
-├── index.html            # the game
-├── pyproject.toml        # playwright (uv venv)
-├── scripts/
-│   ├── play.py           # automated playthrough (prints the cube slices)
-│   └── screenshot.py     # screenshot of the game
-└── tests/
-    ├── browser_lib.py    # reusable helpers (Chrome over CDP, visible tab)
-    ├── test_game.py      # black-box browser test
-    ├── logic_test.js     # deterministic logic test (no browser)
-    └── screenshot.png
-```
+**Play it:** [bazoocaze.github.io/samecube](https://bazoocaze.github.io/samecube/)
+— one HTML file, no dependencies, no build step.
 
-## Rules
+![The cube mid-game: popped columns, floating clusters, and a selected group of 3](screenshot.png)
 
-- **First click** selects the connected group of **2+ cubes** of the same colour
-  (orthogonal adjacency, 6 neighbours — the group includes hidden cubes).
-- **Second click** on the same group destroys it; cubes above fall down (gravity is
-  world-down, applied only after a destruction).
-- Only **visible** cubes can be clicked; a hidden cube joins the group when it becomes exposed.
-- **Rotating** (left/right, up/down, 90° snap, swept over `rotMs`) **never** triggers gravity:
-  floating clusters stay where they are until a destruction happens in their column. Rotate with the
-  arrow keys, the buttons, or a swipe on the canvas — a press under ~14 px is a tap (select), above
-  it is a swipe (rotate).
-- Score for a group of `n`: `n × (n − 1) × chain`, where `chain` grows `1.0 → 1.5 → 2.0 …`
-  per consecutive destruction (re-selecting a different group resets the chain).
-  Clearing the cube: `+2000` bonus.
-- Best score is kept in `localStorage`.
+## How to play
 
-Extras: undo, shuffle, sound (WebAudio), hover with a `n · points` badge, particles,
-pop animations, keyboard `← → ↑ ↓` (rotate) and `N U S M`, swipe to rotate (mouse or touch).
+1. **Click** a cube — it selects the connected group of same-colour cubes.
+2. **Click again** — the group pops and everything above it falls.
 
-## Run
+Groups of one cube cannot be popped, so the cube is stuck until you open it up. Only cubes with a
+visible face are clickable; a hidden cube joins the group as soon as it becomes exposed. Adjacency
+is orthogonal — 6 neighbours, so a group can run through the interior of the cube.
 
-Open `index.html` in a browser.
+**Rotating** (arrow keys, the ◀ ▶ ▲ ▼ buttons, or a swipe on the cube) turns the whole board 90°
+around the vertical or horizontal axis. Rotation never makes cubes fall: floating clusters keep
+hanging where they are until something pops in their column. A short press selects, a drag rotates.
 
-## Tests
+## Scoring
 
-Uses the already-installed Chrome over CDP (the `browser-control` skill) — it does not
-download a browser, and the tab is kept **visible**.
+A group of `n` cubes scores `n × (n − 1) × chain`, where `chain` grows with consecutive pops:
 
-```bash
-uv venv && uv pip install playwright
+| consecutive pops | chain |
+|---|---|
+| 1st | 1.0× |
+| 2nd | 1.5× |
+| 3rd | 2.0× |
+| each after | +0.5 |
 
-node tests/logic_test.js          # multiset, gravity, score/chain, undo, shuffle, game over
-uv run python tests/test_game.py  # plays through the browser: pick, render, HUD, buttons, persistence
-uv run python scripts/play.py --moves 40 --delay 0.4
-uv run python scripts/screenshot.py --moves 14 --out tests/screenshot.png
-```
+Selecting a different group resets the chain, so big groups late in a chain are worth a lot —
+the hover badge shows `group · points` for the group under the cursor. Clearing the whole cube
+pays a **+2000** bonus. The best score is kept in the browser.
 
-Harness notes:
-- `tests/browser_lib.py` exposes `open_game`, `read_state`, `hud`, `screen_pos`, `pick_face`,
-  `pick_cube`, `click_cube`, `hover_cube`, `rotate`, `find_group`, `largest_group`,
-  `compact_columns`, `multiset`, `clickable`, `wait_idle`.
-- The game exposes `window.cubegame` (test hook) so state, picking and the drawn face fill can
-  be read without sampling pixels.
-- `pick` depends on `state.faces` (the last render), so `screen_pos`/`pick_face` force a render
-  before comparing, and `refit()` re-applies the canvas fit if the window changed size.
-- Click coordinates are rounded to whole CSS px, otherwise the exact cube-centre point can land
-  on a neighbouring face.
-- The tab must be foregrounded (`bring_to_front`), otherwise Chrome throttles
-  `requestAnimationFrame` and the render loop stops.
-- Layout is responsive: two columns when wide, and on screens narrower than 760px the menus go
-  on top and the cube below them (`flex` column, `aside` order 1). The cube is fitted to the
-  canvas from the projected bounding box of the 5×5×5 grid, so it is never clipped.
-- The render loop is dirty-flag driven (`step(now)` → `render(now)` on `requestAnimationFrame`):
-  it draws only when something changed or an animation is running, and only while the tab is
-  visible. Pop/fall/rotate animations are time-parametric (`(now - t0) / duration`), not
-  integrated per frame — so a test that wants an intermediate frame must freeze the value and
-  call `render()`.
+The game ends when no group of 2 or more is left.
 
-Bugs found by the tests: inverted camera pitch sign (top faces were culled and bottom faces
-drawn), canvas taller than the viewport (clicks landed outside it), fractional click
-coordinates landing on the wrong face, stale `state.faces` between pick and pixel read,
-`pointInPoly` setting `inside = true` instead of toggling it — the even-odd rule needs a toggle,
-so any point to the left of a polygon was reported as inside it and clicks on the left and top
-faces selected the wrong cube, the rotation never animated (`state.rot.angle` was reset but never
-incremented, so the board snapped after `rotMs` instead of sweeping), the fill keyed by the
-*logical* grid direction so the shade jumped at the commit (a colour pop at the end of every
-rotation — it now ramps with the angle, matching the table at `t = 0` and `t = 1`), and the Android
-tap highlight painting a bluish overlay over the whole canvas on touch (absent on desktop). Also: the
-two-column layout had no breakpoint, so a phone in portrait gave the canvas ~60px of width;
-narrow screens now stack menus above the cube and the cube is fitted to the canvas instead of
-using a fixed `unit`.
+## Controls
+
+| | |
+|---|---|
+| click / tap | select, then pop |
+| swipe or `← → ↑ ↓` | rotate 90° |
+| `N` | new game |
+| `U` | undo |
+| `S` | shuffle |
+| `M` | sound on/off |
+
+Extras: undo, shuffle, sound, pop and fall animations, particles.
+
+Open `index.html` in any browser to play locally.
 
 ## License
 
