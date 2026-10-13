@@ -95,7 +95,9 @@ details here, not there.
     call would throw. The Install button stays hidden until `beforeinstallprompt` fires, and the
     manifest must keep the members Chromium requires to install: name, a 192 px and a 512 px icon,
     `start_url`, `display`, and a scope that covers the page (relative `./`, because the demo lives
-    under a subpath on GitHub Pages).
+    under a subpath on GitHub Pages). Firefox never fires `beforeinstallprompt` (it cannot install
+    from a manifest), so the button must stay hidden there without throwing — the service worker and
+    the offline cache do work in Firefox.
 
 ## Known harness gotchas (learned the hard way)
 

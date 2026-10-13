@@ -58,6 +58,10 @@ On Android or desktop Chromium the browser shows an **Install app** button in th
 page is installable, and the game keeps working offline — the page and the icons are cached.
 On iPhone/iPad use *Share → Add to Home Screen*.
 
+Firefox does not install web apps from a manifest: on Android it can only add a home-screen
+shortcut that opens in the browser. Offline still works there, and the Install button stays hidden
+because Firefox never fires the install event.
+
 Installing needs the page served over HTTPS (or `localhost`). Opening `index.html` straight from
 disk still plays, it just cannot be installed.
 
