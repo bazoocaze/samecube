@@ -52,6 +52,15 @@ Extras: undo, shuffle, sound, pop and fall animations, particles.
 
 Open `index.html` in any browser to play locally.
 
+## Install as an app
+
+On Android or desktop Chromium the browser shows an **Install app** button in the menu once the
+page is installable, and the game keeps working offline — the page and the icons are cached.
+On iPhone/iPad use *Share → Add to Home Screen*.
+
+Installing needs the page served over HTTPS (or `localhost`). Opening `index.html` straight from
+disk still plays, it just cannot be installed.
+
 ## License
 
 [MIT](LICENSE) — the code is yours, use, modify and redistribute it freely.

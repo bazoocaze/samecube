@@ -6,3 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "playwright>=1.45",
 ]
+
+[project.optional-dependencies]
+# only needed to regenerate the PWA icons (scripts/make_icons.py)
+icons = ["pillow>=10"]

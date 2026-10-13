@@ -1,0 +1,23 @@
+{
+  "name": "Cubes — SameGame on a 5×5×5 cube",
+  "short_name": "Cubes",
+  "description": "SameGame (Clickomania) on a 5×5×5 cube: click a cube to select its connected group, click again to pop it. Rotates, gravity, chains, undo.",
+  "id": "https://bazoocaze.github.io/samecube/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "screenshots": [
+    { "src": "screenshot.png", "sizes": "1100x831", "type": "image/png", "description": "The cube mid-game: popped columns, floating clusters, a selected group" }
+  ]
+}
